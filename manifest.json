@@ -1,0 +1,97 @@
+{
+  "dxt_version": "0.1",
+  "name": "logsure-field-service",
+  "display_name": "LogSure Field Service",
+  "version": "1.0.9",
+  "description": "Professional field service task management integration for Claude Desktop",
+  "long_description": "Connect Claude Desktop to your LogSure field service management system. View daily tasks, check completion status, and manage locations - all through natural conversation with Claude. Perfect for field service teams, facility managers, and maintenance professionals who want AI-powered task management.\n\n**Features:**\n- View today's scheduled tasks with location details\n- Check task status and filter by completion state\n- Browse organization locations and hierarchies\n- Secure authentication via your LogSure account\n\n**Security:** All data stays within your LogSure organization. Authentication uses your existing Clerk tokens with Firebase security.",
+  "author": {
+    "name": "jp730",
+    "email": "support@logsure.io",
+    "url": "https://github.com/jp730"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jp730/logsure-claude-extension"
+  },
+  "homepage": "https://logsure.io/ai-integrations/claude-desktop",
+  "documentation": "https://logsure.io/ai-integrations/claude-desktop",
+  "support": "https://logsure.io/support",
+  "server": {
+    "type": "node",
+    "entry_point": "server/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": [
+        "${__dirname}/server/index.js"
+      ],
+      "env": {
+        "LOGSURE_CLERK_TOKEN": "${user_config.clerk_token}",
+        "LOGSURE_ORG_ID": "${user_config.organization_id}",
+        "LOGSURE_USER_ID": "${user_config.user_id}",
+        "FIREBASE_SERVICE_ACCOUNT": "${user_config.firebase_credentials}"
+      }
+    }
+  },
+  "tools": [
+    {
+      "name": "get_tasks_today",
+      "description": "View today's field service tasks with location details and status"
+    },
+    {
+      "name": "get_locations", 
+      "description": "List all accessible locations in your organization hierarchy"
+    },
+    {
+      "name": "get_task_status",
+      "description": "Check task status and filter by completion state"
+    }
+  ],
+  "tools_generated": false,
+  "keywords": [
+    "field-service",
+    "task-management", 
+    "maintenance",
+    "facility-management",
+    "logsure",
+    "scheduling",
+    "firebase",
+    "clerk"
+  ],
+  "license": "MIT",
+  "compatibility": {
+    "claude_desktop": ">=0.1.0",
+    "platforms": ["darwin", "win32", "linux"],
+    "runtimes": {
+      "node": ">=18.0.0"
+    }
+  },
+  "user_config": {
+    "clerk_token": {
+      "type": "string",
+      "title": "Clerk Authentication Token",
+      "description": "Your LogSure Clerk JWT token for authentication. Find this in your LogSure app's browser developer tools under Application > Local Storage.",
+      "sensitive": true,
+      "required": true
+    },
+    "organization_id": {
+      "type": "string", 
+      "title": "LogSure Organization ID",
+      "description": "Your LogSure organization ID. Use the debug tool to find this value.",
+      "required": true
+    },
+    "user_id": {
+      "type": "string",
+      "title": "LogSure User ID", 
+      "description": "Your LogSure user ID. Use the debug tool to find this value.",
+      "required": true
+    },
+    "firebase_credentials": {
+      "type": "string",
+      "title": "Firebase Service Account",
+      "description": "Firebase service account JSON credentials for secure data access. Contact your LogSure administrator if you don't have these.",
+      "sensitive": true,
+      "required": true
+    }
+  }
+}

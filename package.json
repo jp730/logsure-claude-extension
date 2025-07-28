@@ -1,0 +1,17 @@
+{
+  "name": "logsure-desktop-extension",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "LogSure <support@logsure.io>",
+  "license": "MIT",
+  "type": "commonjs",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.17.0",
+    "firebase-admin": "^13.4.0"
+  }
+}
