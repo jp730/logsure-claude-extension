@@ -43,7 +43,7 @@ Once configured, you can interact with Claude naturally:
 
 ## Support
 
-For support, visit: https://logsure.app/support
+For support, visit: https://logsure.io/support
 
 ## License
 
