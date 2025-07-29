@@ -3,7 +3,7 @@
 ## Extension Overview
 
 **Name**: LogSure Field Service Management  
-**Version**: 1.0.0  
+**Version**: 1.1.2  
 **Category**: Productivity, Business Tools  
 **File**: `logsure-desktop-extension.dxt` (8.4MB)
 
@@ -24,24 +24,25 @@ Professional field service task management integration for Claude Desktop. Enabl
 
 - **Runtime**: Node.js 18+ (bundled dependencies)
 - **Transport**: MCP stdio (as required by DXT spec)
-- **Authentication**: Clerk JWT tokens with Firebase security
-- **Data Access**: Firebase Cloud Functions (existing LogSure infrastructure)
+- **Authentication**: Clerk JWT tokens with Cloud Functions API
+- **Data Access**: Secure Cloud Functions (existing LogSure infrastructure)
 - **Platforms**: macOS, Windows, Linux
 
 ## Security & Privacy
 
 - **Data Ownership**: All data remains within user's LogSure organization
 - **Authentication**: Leverages existing Clerk tokens (no new accounts needed)
-- **Permissions**: Follows Firebase security rules and organizational permissions
+- **Permissions**: Follows organizational permissions via Cloud Functions API
 - **Storage**: Sensitive credentials stored in OS keychain by Claude Desktop
-- **Network**: Only communicates with LogSure's existing Firebase infrastructure
+- **Network**: Only communicates with LogSure's secure Cloud Functions endpoints
 
-## User Configuration Required
+## User Configuration Required (Simplified Setup)
 
 1. **Clerk Token**: User's LogSure authentication JWT token
 2. **Organization ID**: LogSure organization identifier
-3. **User ID**: LogSure user identifier  
-4. **Firebase Credentials**: Service account JSON (provided by LogSure admin)
+3. **User ID**: LogSure user identifier
+
+*No Firebase credentials needed - uses secure Cloud Functions API*
 
 ## Usage Examples
 
@@ -56,7 +57,7 @@ Natural language commands users can use:
 ## Testing Verification
 
 ✅ Manifest validates against DXT schema  
-✅ All 4 tools properly declared and implemented  
+✅ All 3 tools properly declared and implemented  
 ✅ User configuration schema complete  
 ✅ Error handling and timeouts implemented  
 ✅ Cross-platform compatibility verified  

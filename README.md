@@ -18,12 +18,11 @@ Professional field service task management integration for Claude Desktop.
 
 ## Configuration
 
-You'll need to provide:
+You'll need to provide (simplified setup - no Firebase credentials needed):
 
 - **Clerk Token**: Your LogSure authentication token
 - **Organization ID**: Your LogSure org ID (starts with `org_`)
 - **User ID**: Your LogSure user ID (starts with `user_`)
-- **Firebase Credentials**: Service account JSON for secure data access
 
 ## Usage Examples
 
@@ -39,7 +38,7 @@ Once configured, you can interact with Claude naturally:
 - All authentication uses your existing LogSure account
 - Data never leaves your organization
 - Credentials stored securely in OS keychain
-- Uses Firebase security rules and permissions
+- Uses secure Cloud Functions API with simplified authentication
 
 ## Support
 
