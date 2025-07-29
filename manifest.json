@@ -2,9 +2,9 @@
   "dxt_version": "0.1",
   "name": "logsure-field-service",
   "display_name": "LogSure Field Service",
-  "version": "1.0.9",
-  "description": "Professional field service task management integration for Claude Desktop",
-  "long_description": "Connect Claude Desktop to your LogSure field service management system. View daily tasks, check completion status, and manage locations - all through natural conversation with Claude. Perfect for field service teams, facility managers, and maintenance professionals who want AI-powered task management.\n\n**Features:**\n- View today's scheduled tasks with location details\n- Check task status and filter by completion state\n- Browse organization locations and hierarchies\n- Secure authentication via your LogSure account\n\n**Security:** All data stays within your LogSure organization. Authentication uses your existing Clerk tokens with Firebase security.",
+  "version": "1.1.2",
+  "description": "Professional field service task management integration for Claude Desktop with simplified setup",
+  "long_description": "Connect Claude Desktop to your LogSure field service management system with simplified setup - no Firebase credentials needed! View daily tasks, check completion status, and manage locations - all through natural conversation with Claude. Perfect for field service teams, facility managers, and maintenance professionals who want AI-powered task management.\n\n**Features:**\n- View today's scheduled tasks with location details\n- Check task status and filter by completion state\n- Browse organization locations and hierarchies\n- Simplified setup with just Clerk authentication\n- Secure Cloud Function API integration\n\n**Security:** All data stays within your LogSure organization. Uses secure Cloud Functions with your existing Clerk authentication.",
   "author": {
     "name": "jp730",
     "email": "support@logsure.io",
@@ -28,8 +28,7 @@
       "env": {
         "LOGSURE_CLERK_TOKEN": "${user_config.clerk_token}",
         "LOGSURE_ORG_ID": "${user_config.organization_id}",
-        "LOGSURE_USER_ID": "${user_config.user_id}",
-        "FIREBASE_SERVICE_ACCOUNT": "${user_config.firebase_credentials}"
+        "LOGSURE_USER_ID": "${user_config.user_id}"
       }
     }
   },
@@ -84,13 +83,6 @@
       "type": "string",
       "title": "LogSure User ID", 
       "description": "Your LogSure user ID. Use the debug tool to find this value.",
-      "required": true
-    },
-    "firebase_credentials": {
-      "type": "string",
-      "title": "Firebase Service Account",
-      "description": "Firebase service account JSON credentials for secure data access. Contact your LogSure administrator if you don't have these.",
-      "sensitive": true,
       "required": true
     }
   }

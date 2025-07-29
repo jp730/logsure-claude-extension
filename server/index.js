@@ -9,20 +9,19 @@
  * - Location management  
  * - Status tracking
  * 
- * Uses Firebase Cloud Functions for data access with proper authentication
+ * Uses Cloud Functions API for simplified setup without Firebase credentials
  */
 
 const { Server } = require('@modelcontextprotocol/sdk/server/index.js');
 const { StdioServerTransport } = require('@modelcontextprotocol/sdk/server/stdio.js');
 const { ListToolsRequestSchema, CallToolRequestSchema } = require('@modelcontextprotocol/sdk/types.js');
-const admin = require('firebase-admin');
 
 class LogSureMCPServer {
   constructor() {
     this.server = new Server(
       {
         name: 'logsure-field-service',
-        version: '1.0.9',
+        version: '1.1.2',
       },
       {
         capabilities: {
@@ -31,29 +30,35 @@ class LogSureMCPServer {
       }
     );
 
-    // Don't initialize Firebase during construction to avoid timeout
-    // It will be initialized when first needed
-    this.db = null;
+    // Cloud Function base URL
+    this.baseUrl = 'https://europe-west2-log-check-25ce4.cloudfunctions.net';
     this.setupTools();
   }
 
-  initializeFirebase() {
-    if (this.db) return; // Already initialized
-    
+  async callCloudFunction(functionName, data) {
     try {
-      console.error('Initializing Firebase...');
-      // Initialize Firebase Admin with credentials from environment
-      if (!admin.apps.length) {
-        const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-        admin.initializeApp({
-          credential: admin.credential.cert(serviceAccount),
-        });
+      console.error(`Calling Cloud Function: ${functionName}`, data);
+      
+      const response = await fetch(`${this.baseUrl}/${functionName}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ data }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`Cloud Function ${functionName} error:`, response.status, errorText);
+        throw new Error(`Cloud Function call failed: ${response.status} - ${errorText}`);
       }
-      this.db = admin.firestore();
-      console.error('Firebase initialized successfully');
+
+      const result = await response.json();
+      console.error(`Cloud Function ${functionName} response received`);
+      return result.result || result;
     } catch (error) {
-      console.error('Firebase initialization failed:', error.message);
-      throw new Error('Failed to initialize Firebase connection');
+      console.error(`Error calling Cloud Function ${functionName}:`, error);
+      throw new Error(`Failed to call ${functionName}: ${error.message}`);
     }
   }
 
@@ -145,70 +150,36 @@ class LogSureMCPServer {
     const { orgId, userId, clerkToken } = this.getUserConfig();
     
     try {
-      console.error('Authenticating with Cloud Function...', { userId: userId.substring(0, 8) + '...', orgId: orgId.substring(0, 8) + '...' });
+      console.error('Authenticating with Cloud Function...', { 
+        userId: userId.substring(0, 8) + '...', 
+        orgId: orgId.substring(0, 8) + '...' 
+      });
       
-      // User ID is now the Firebase document ID directly
-      console.error('Using Firebase document ID directly:', userId);
-      console.error('Organization ID:', orgId);
-      
-      const userDoc = await this.db.collection('users').doc(userId).get();
-      
-      if (!userDoc.exists) {
-        throw new Error('User document not found - check your LogSure User ID');
-      }
-      
-      const userData = userDoc.data();
-      console.error('Found user data for:', userId);
-      console.error('User orgId:', userData.orgId);
-      console.error('Expected orgId:', orgId);
-      console.error('DEBUG: Full userData:', JSON.stringify(userData, null, 2));
-      
-      if (userData.orgId !== orgId) {
-        throw new Error(`Organization mismatch - user belongs to ${userData.orgId}, but config uses ${orgId}`);
-      }
-      
-      const firebaseUid = userDoc.id;
-      const clerkUserId = userData.clerkId; // Get the original Clerk ID from the user document
-      
-      console.error('DEBUG: Sending to Cloud Function:');
-      console.error('- clerkUserId:', clerkUserId);
-      console.error('- orgId:', orgId);
-      console.error('- userData.clerkId exists:', !!userData.clerkId);
-      
-      // Call the new MCP-specific Cloud Function for authentication
-      const response = await fetch('https://europe-west2-log-check-25ce4.cloudfunctions.net/directFirebaseAuthMCP', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          data: { userId: clerkUserId, orgId }
-        }),
+      // Use the directFirebaseAuthMCP Cloud Function for authentication
+      // The userId from config is actually the Clerk ID
+      const result = await this.callCloudFunction('directFirebaseAuthMCP', {
+        userId: userId, // This is the Clerk ID from the config
+        orgId
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Auth response error:', response.status, errorText);
-        throw new Error(`Authentication failed: ${response.status}`);
+      if (!result.success) {
+        throw new Error('Authentication failed');
       }
 
-      const result = await response.json();
-      console.error('Cloud Function response:', JSON.stringify(result, null, 2));
-      const firebaseToken = result.firebaseToken;
+      const { user, firebaseToken } = result;
       
-      const orgDoc = await this.db.collection('organisations').doc(orgId).get();
-      const orgData = orgDoc.data();
-      const userRole = userData?.role || 5;
-      
-      const permissions = orgData?.permissions
-        ?.filter((perm) => perm.roles.includes(userRole))
-        ?.map((perm) => perm.id) || [];
+      console.error('Authentication successful:', {
+        firebaseUid: user.firebaseUid,
+        orgId: user.orgId,
+        role: user.role,
+        permissionsCount: user.permissions.length
+      });
 
       return {
-        userId: firebaseUid, // Use the Firebase document ID, not Clerk ID
-        orgId,
-        role: userRole,
-        permissions,
+        userId: user.firebaseUid, // Firebase document ID
+        orgId: user.orgId,
+        role: user.role,
+        permissions: user.permissions,
         firebaseToken
       };
     } catch (error) {
@@ -225,7 +196,7 @@ class LogSureMCPServer {
     const userId = process.env.LOGSURE_USER_ID;
 
     if (!clerkToken || !orgId || !userId) {
-      throw new Error('Missing required authentication configuration');
+      throw new Error('Missing required authentication configuration. Please check your extension settings.');
     }
 
     return { clerkToken, orgId, userId };
@@ -235,76 +206,8 @@ class LogSureMCPServer {
     return userPermissions.includes(requiredPermission);
   }
 
-  async handleDebugAuth(args) {
-    try {
-      const { clerkToken, orgId, userId } = this.getUserConfig();
-      
-      let response = `🔍 **Debug Authentication**\n\n`;
-      response += `**Environment Variables:**\n`;
-      response += `- Clerk Token: ${clerkToken ? 'SET (' + clerkToken.substring(0, 10) + '...)' : 'NOT SET'}\n`;
-      response += `- Org ID: ${orgId || 'NOT SET'}\n`;
-      response += `- User ID: ${userId || 'NOT SET'}\n`;
-      response += `- Firebase Creds: ${process.env.FIREBASE_SERVICE_ACCOUNT ? 'SET' : 'NOT SET'}\n\n`;
-
-      // Try Firebase connection
-      try {
-        this.initializeFirebase();
-        response += `**Firebase:** ✅ Connected\n\n`;
-        
-        // Try direct user document lookup (since userId is now the Firebase doc ID)
-        response += `**User Lookup:**\n`;
-        try {
-          const userDoc = await this.db.collection('users').doc(userId).get();
-          
-          if (userDoc.exists) {
-            const userData = userDoc.data();
-            response += `✅ **User Found:**\n`;
-            response += `- User ID: ${userDoc.id}\n`;
-            response += `- Organization: ${userData.orgId}\n`;
-            response += `- Org ID Match: ${userData.orgId === orgId ? '✅' : '❌'}\n\n`;
-            
-            if (userData.orgId === orgId) {
-              response += `🎉 **Configuration is correct! You should be able to use all tools now.**\n`;
-            } else {
-              response += `⚠️ **Org ID Mismatch:**\n`;
-              response += `- Your config Org ID: ${orgId}\n`;
-              response += `- User's actual Org ID: ${userData.orgId}\n`;
-              response += `Update your Organization ID to: \`${userData.orgId}\`\n`;
-            }
-          } else {
-            response += `❌ User document not found with ID: ${userId}\n`;
-            response += `Please check your LogSure User ID is correct.\n`;
-          }
-        } catch (docError) {
-          response += `❌ Error looking up user: ${docError.message}\n`;
-        }
-        
-      } catch (error) {
-        response += `**Firebase:** ❌ Error: ${error.message}\n`;
-      }
-
-      return {
-        content: [
-          {
-            type: 'text',
-            text: response,
-          },
-        ],
-      };
-    } catch (error) {
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `❌ Debug failed: ${error.message}`,
-          },
-        ],
-      };
-    }
-  }
 
   async handleGetTasksToday(args) {
-    this.initializeFirebase();
     const userContext = await this.validateUserContext();
     
     // Check permissions
@@ -314,7 +217,21 @@ class LogSureMCPServer {
     }
 
     const date = args.date || new Date().toISOString().split('T')[0];
-    const tasks = await this.getTasks(date, userContext, args.locationId);
+    
+    // Call the getTasksMCP Cloud Function
+    const result = await this.callCloudFunction('getTasksMCP', {
+      userId: userContext.userId,
+      orgId: userContext.orgId,
+      date,
+      locationId: args.locationId,
+      status: args.status
+    });
+
+    if (!result.success) {
+      throw new Error('Failed to retrieve tasks');
+    }
+
+    const tasks = result.tasks;
 
     if (tasks.length === 0) {
       return {
@@ -362,7 +279,6 @@ class LogSureMCPServer {
   }
 
   async handleGetLocations(args) {
-    this.initializeFirebase();
     const userContext = await this.validateUserContext();
     
     if (!this.hasPermission(userContext.permissions, 'view_all_locations') &&
@@ -370,7 +286,18 @@ class LogSureMCPServer {
       throw new Error('You do not have permission to view locations');
     }
 
-    const locations = await this.getLocations(userContext.orgId);
+    // Call the getLocationsMCP Cloud Function
+    const result = await this.callCloudFunction('getLocationsMCP', {
+      userId: userContext.userId,
+      orgId: userContext.orgId,
+      parentId: args.parentId
+    });
+
+    if (!result.success) {
+      throw new Error('Failed to retrieve locations');
+    }
+
+    const locations = result.locations;
 
     if (locations.length === 0) {
       return {
@@ -414,7 +341,6 @@ class LogSureMCPServer {
   }
 
   async handleCompleteTask(args) {
-    this.initializeFirebase();
     const userContext = await this.validateUserContext();
     
     if (!this.hasPermission(userContext.permissions, 'complete_tasks')) {
@@ -442,7 +368,6 @@ class LogSureMCPServer {
   }
 
   async handleGetTaskStatus(args) {
-    this.initializeFirebase();
     const userContext = await this.validateUserContext();
     
     if (!this.hasPermission(userContext.permissions, 'view_assigned_tasks') &&
@@ -451,8 +376,21 @@ class LogSureMCPServer {
     }
 
     const today = new Date().toISOString().split('T')[0];
-    const tasks = await this.getTasks(today, userContext, args.locationId);
-    const filteredTasks = args.status ? tasks.filter((t) => t.status === args.status) : tasks;
+    
+    // Call the getTasksMCP Cloud Function
+    const result = await this.callCloudFunction('getTasksMCP', {
+      userId: userContext.userId,
+      orgId: userContext.orgId,
+      date: today,
+      locationId: args.locationId,
+      status: args.status
+    });
+
+    if (!result.success) {
+      throw new Error('Failed to retrieve task status');
+    }
+
+    const filteredTasks = result.tasks;
 
     if (filteredTasks.length === 0) {
       const statusText = args.status ? ` with status "${args.status}"` : '';
@@ -489,87 +427,11 @@ class LogSureMCPServer {
     };
   }
 
-  // Firebase data access methods
-  async getTasks(date, userContext, locationId) {
-    try {
-      const tasksRef = this.db.collection('scheduledTasks');
-      let query = tasksRef.where('orgId', '==', userContext.orgId);
-      
-      // Add date filter - use ISO strings like the other functions
-      const startOfDay = date + 'T00:00:00.000Z';
-      const endOfDay = date + 'T23:59:59.999Z';
-      query = query.where('scheduledFor', '>=', startOfDay)
-                   .where('scheduledFor', '<=', endOfDay);
-
-      if (locationId) {
-        query = query.where('locationId', '==', locationId);
-      }
-
-      const snapshot = await query.get();
-      const tasks = [];
-
-      for (const doc of snapshot.docs) {
-        const taskData = doc.data();
-        
-        // Get location path
-        let locationPath = [];
-        if (taskData.locationId) {
-          try {
-            const locationDoc = await this.db.collection('locations').doc(taskData.locationId).get();
-            if (locationDoc.exists) {
-              const location = locationDoc.data();
-              locationPath = location.path || [location.name];
-            }
-          } catch (error) {
-            console.error('Error getting location:', error);
-          }
-        }
-
-        tasks.push({
-          id: doc.id,
-          title: taskData.title,
-          status: taskData.status || 'pending',
-          instructions: taskData.instructions,
-          assignedTo: taskData.assignedTo,
-          locationPath,
-        });
-      }
-
-      return tasks;
-    } catch (error) {
-      console.error('Error getting tasks:', error);
-      throw new Error('Failed to retrieve tasks');
-    }
-  }
-
-  async getLocations(orgId) {
-    try {
-      const locationsRef = this.db.collection('locations');
-      const query = locationsRef.where('orgId', '==', orgId);
-      const snapshot = await query.get();
-
-      const locations = [];
-      snapshot.forEach((doc) => {
-        const locationData = doc.data();
-        locations.push({
-          id: doc.id,
-          name: locationData.name,
-          level: locationData.level || 'unknown',
-          path: locationData.path || [],
-        });
-      });
-
-      return locations;
-    } catch (error) {
-      console.error('Error getting locations:', error);
-      throw new Error('Failed to retrieve locations');
-    }
-  }
 
   async completeTask(taskId, notes, userContext) {
     try {
-      // Use your existing Cloud Function
-      const response = await fetch('https://europe-west2-log-check-25ce4.cloudfunctions.net/completeTask', {
+      // Use the existing completeTask Cloud Function
+      const response = await fetch(`${this.baseUrl}/completeTask`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -585,7 +447,9 @@ class LogSureMCPServer {
       });
 
       if (!response.ok) {
-        throw new Error(`Cloud function call failed: ${response.status}`);
+        const errorText = await response.text();
+        console.error('Complete task Cloud Function error:', response.status, errorText);
+        throw new Error(`Cloud function call failed: ${response.status} - ${errorText}`);
       }
 
       const result = await response.json();
